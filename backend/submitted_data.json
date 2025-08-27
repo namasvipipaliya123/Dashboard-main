@@ -1,0 +1,14 @@
+{
+  "all": 239,
+  "rto_complete": 43,
+  "door_step_exchanged": 2,
+  "delivered": 139,
+  "cancelled": 55,
+  "rto_locked": 0,
+  "ready_to_ship": 0,
+  "shipped": 0,
+  "rto_initiated": 0,
+  "other": 0,
+  "totalSupplierListedPrice": 172383,
+  "totalSupplierDiscountedPrice": 172383
+}

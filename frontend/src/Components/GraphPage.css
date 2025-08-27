@@ -1,0 +1,47 @@
+.graph-container {
+  padding: 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.graph-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  color: #f8fafc;
+}
+
+.graph-header h1 {
+  font-size: 24px;
+  font-weight: bold;
+  color: #f1f5f9; /* light text */
+}
+
+.back-link {
+  text-decoration: none;
+  font-size: 14px;
+  color: #38bdf8;
+  background: #0f172a;
+  padding: 8px 14px;
+  border-radius: 6px;
+  transition: 0.3s;
+}
+
+.back-link:hover {
+  background: #1e40af;
+  color: #fff;
+}
+
+.chart-box {
+  flex: 1; /* Full available height */
+  background: transparent; /* No white box */
+  border-radius: 12px;
+}
+
+.no-data {
+  text-align: center;
+  color: #cbd5e1;
+  font-size: 18px;
+}
