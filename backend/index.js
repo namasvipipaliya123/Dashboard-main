@@ -356,5 +356,22 @@ app.get("/download", async (req, res) => {
     res.status(500).json({ error: "Failed to generate PDF" });
   }
 });
+app.get("/show-code", (req, res) => {
+  const code = fs.readFileSync(__filename, "utf-8"); // read current file
+  res.send(`
+    <html>
+      <head>
+        <title>Server Code</title>
+        <style>
+          body { background: #1e1e1e; color: #d4d4d4; font-family: monospace; padding: 20px; }
+          pre { white-space: pre-wrap; word-wrap: break-word; }
+        </style>
+      </head>
+      <body>
+        <pre>${code.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+      </body>
+    </html>
+  `);
+});
 
 app.listen(PORT, () => console.log(` Server running on http://localhost:${PORT}`));
