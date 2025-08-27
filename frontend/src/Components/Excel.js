@@ -1,20 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Link,
-  useLocation,
-} from "react-router-dom";
-import GraphPage from "./GraphPage";
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import GraphPage from "./GraphPage";   // 🔹 नया Graph Page import
 import "./Excel.css";
 
 function Dashboard() {
   const [file, setFile] = useState(null);
   const [subOrderNo, setSubOrderNo] = useState("");
   const [filterResult, setFilterResult] = useState(null);
-  const [graphData, setGraphData] = useState([]);
+  const [graphData, setGraphData] = useState([]); 
+
   const [data, setData] = useState({
     all: 0,
     rto: 0,
@@ -35,18 +30,6 @@ function Dashboard() {
   const [profitPercent, setProfitPercent] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [showFilteredView, setShowFilteredView] = useState(false);
-
-  const location = useLocation();
-  const query = new URLSearchParams(location.search);
-  const queryId = query.get("i"); 
-
-  useEffect(() => {
-    if (queryId) {
-      setSubOrderNo(queryId);
-      handleFilter(queryId);
-    }
-
-  }, [queryId]);
 
   const handleDownload = () => {
     fetch("http://localhost:5000/download", {
@@ -110,13 +93,13 @@ function Dashboard() {
     setDragActive(false);
   };
 
-  const handleFilter = async (subNo = subOrderNo) => {
-    if (!subNo) {
+  const handleFilter = async () => {
+    if (!subOrderNo) {
       alert("Please enter a Sub Order No.");
       return;
     }
     try {
-      const res = await axios.get(`http://localhost:5000/filter/${subNo}`);
+      const res = await axios.get(`http://localhost:5000/filter/${subOrderNo}`);
       setFilterResult(res.data);
 
       const calcProfit = 500 - res.data.discountedPrice;
@@ -139,13 +122,9 @@ function Dashboard() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const uploadRes = await axios.post(
-        "http://localhost:5000/upload",
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
-      );
+      const uploadRes = await axios.post("http://localhost:5000/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
       const result = uploadRes.data;
       const totalListed = result.totals?.totalSupplierListedPrice || 0;
@@ -223,7 +202,7 @@ function Dashboard() {
             value={subOrderNo}
             onChange={(e) => setSubOrderNo(e.target.value)}
           />
-          <button className="back-btn" onClick={() => handleFilter()}>
+          <button className="back-btn" onClick={handleFilter}>
             Filter
           </button>
           {showFilteredView && (
@@ -242,12 +221,69 @@ function Dashboard() {
 
       <h1 className="heading">Product Status Dashboard</h1>
 
-      {/* rest of your UI same as before ... */}
+      {/* Dashboard Boxes */}
+      {!showFilteredView ? (
+        <div className="status-boxes">
+          <div className="box all">All<br /><span>{data.all}</span></div>
+          <div className="box rto">RTO<br /><span>{data.rto}</span></div>
+          <div className="box door_step_exchanged">
+            Door Step Exchanged<br /><span>{data.door_step_exchanged}</span>
+            <br/>
+            <small style={{ fontSize: "32px", color: "#222" }}>
+              {data.totalDoorStepExchanger.toLocaleString()}
+            </small>
+          </div>
+          <div className="box delivered">
+            Delivered<br /><span>{data.delivered}</span>
+            <br />
+            <small style={{ fontSize: "32px", color: "#222" }}>
+              ₹{data.deliveredSupplierDiscountedPriceTotal.toLocaleString()}
+            </small>
+          </div>
+          <div className="box cancelled">Cancelled<br /><span>{data.cancelled}</span></div>
+          <div className="box ready_to_ship">Pending<br /><span>{data.ready_to_ship}</span></div>
+          <div className="box shipped">Shipped<br /><span>{data.shipped}</span></div>
+          <div className="box other">Other<br /><span>{data.other}</span></div>
+          <div className="box other">
+            Supplier Listed Total Price<br /><span>{data.totalSupplierListedPrice.toLocaleString()}</span>
+          </div>
+          <div className="box other">
+            Supplier Discounted Total Price<br /><span>{data.totalSupplierDiscountedPrice.toLocaleString()}</span>
+          </div>
+          <div className="box other">
+            Total Profit<br /><span>{data.totalProfit.toLocaleString()}</span>
+          </div>
+          <div className="box other">
+            Profit %<br /><span>{profitPercent}%</span>
+          </div>
+        </div>
+      ) : (
+        filterResult && (
+          <div className="status-boxes">
+            <div className="box other">
+              Supplier Listed Price<br />
+              <span>{filterResult.listedPrice.toLocaleString()}</span>
+            </div>
+            <div className="box other">
+              Supplier Discounted Price<br />
+              <span>{filterResult.discountedPrice.toLocaleString()}</span>
+            </div>
+            <div className="box other">
+              Profit (per product)<br />
+              <span>{(500 - filterResult.discountedPrice).toLocaleString()}</span>
+            </div>
+            <div className="box other">
+              Profit %<br /><span>{profitPercent}%</span>
+            </div>
+          </div>
+        )
+      )}
 
+      {/* Graph Button */}
       <div style={{ margin: "20px 0" }}>
         <Link
           to="/graph"
-          state={{ graphData }}
+          state={{ graphData }}   // 🔹 graphData ko next page bhej diya
           style={{
             backgroundColor: "#17a2b8",
             color: "#fff",
@@ -259,11 +295,56 @@ function Dashboard() {
           Show Profit Graph
         </Link>
       </div>
+
+      {/* Upload Section */}
+      <div
+        className={`upload-section ${dragActive ? "drag-active" : ""}`}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+      >
+        <p>Drag and drop your CSV or Excel file here</p>
+        <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} />
+        {file && <p className="filename">Selected File: {file.name}</p>}
+      </div>
+
+      <div style={{ marginTop: "20px" }}>
+        <button
+          onClick={handleSubmitAll}
+          disabled={!file}
+          style={{
+            backgroundColor: "#28a745",
+            color: "#fff",
+            padding: "10px 20px",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontSize: "14px",
+            marginRight: "10px"
+          }}
+        >
+          Submit All (Upload & Save)
+        </button>
+        <button
+          onClick={handleDownload}
+          style={{
+            backgroundColor: "#007bff",
+            color: "#fff",
+            padding: "10px 20px",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontSize: "14px",
+          }}
+        >
+          Download PDF
+        </button>
+      </div>
     </div>
   );
 }
 
-/* ---------------- Router Setup ---------------- */
+// Router Setup
 function App() {
   return (
     <Router>
