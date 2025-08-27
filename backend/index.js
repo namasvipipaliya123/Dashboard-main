@@ -22,7 +22,7 @@ MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
 
 app.use(cors());
 app.use(express.json());
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ storage: multer.memoryStorage() });
 
 const statusList = [
   "all",
@@ -134,37 +134,22 @@ const profitPercentRevenue = totalRevenue !== 0 ? ((totalProfit / totalRevenue) 
   return categories;
 }
 
+
+
 app.post("/upload", upload.single("file"), async (req, res) => {
-  const file = req.file;
-  if (!file) return res.status(400).json({ error: "No file uploaded" });
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-  const ext = path.extname(file.originalname).toLowerCase();
   let rows = [];
-
-  try {
-    if (ext === ".csv") {
-      fs.createReadStream(file.path)
-        .pipe(csv())
-        .on("data", (data) => rows.push(data))
-        .on("end", async () => {
-          fs.unlinkSync(file.path);
-          await saveToDB(rows, res);
-        });
-    } else if (ext === ".xlsx" || ext === ".xls") {
-      const workbook = XLSX.readFile(file.path);
-      const sheetName = workbook.SheetNames[0];
-      rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-      fs.unlinkSync(file.path);
-      await saveToDB(rows, res);
-    } else {
-      fs.unlinkSync(file.path);
-      return res.status(400).json({ error: "Unsupported file format" });
-    }
-  } catch (error) {
-    console.error(" Error processing file:", error);
-    return res.status(500).json({ error: "Failed to process file" });
+  if (req.file.originalname.endsWith(".csv")) {
+    rows = req.file.buffer.toString().split("\n"); // parse directly
+  } else if (req.file.originalname.endsWith(".xlsx")) {
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
   }
+  await saveToDB(rows, res);
 });
+
 
 async function saveToDB(rows, res) {
   if (!db) return res.status(500).json({ message: "MongoDB not connected yet" });
@@ -307,19 +292,26 @@ app.get("/download", async (req, res) => {
     if (!result.length) return res.status(404).json({ error: "No data found" });
 
     const latest = result[0];
+
+    // ✅ Set headers for direct download
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "attachment; filename=dashboard-report.pdf");
+
     const doc = new PDFDocument({ margin: 40, size: "A4" });
-    const filePath = path.join(__dirname, "report.pdf");
-    const stream = fs.createWriteStream(filePath);
-    doc.pipe(stream);
+    doc.pipe(res); // ✅ Directly stream to response (no fs required)
 
     doc.fontSize(22).fillColor("#2E86C1").text("📊 Dashboard Report", { align: "center" });
     doc.moveDown(1);
-                              
+
+    // Summary table
     const summaryRows = [
       ["All Orders", latest.categories.all.length],
       ["RTO", latest.categories.rto.length],
       ["Door Step Exchanged (charges sum)", latest.totals.totalDoorStepExchanger],
-      ["Delivered (count & revenue)", `${latest.categories.delivered.length} (₹${latest.totals.deliveredSupplierDiscountedPriceTotal})`],
+      [
+        "Delivered (count & revenue)",
+        `${latest.categories.delivered.length} (₹${latest.totals.deliveredSupplierDiscountedPriceTotal})`
+      ],
       ["Cancelled", latest.categories.cancelled.length],
       ["Pending", latest.categories.ready_to_ship.length],
       ["Shipped", latest.categories.shipped.length],
@@ -333,11 +325,15 @@ app.get("/download", async (req, res) => {
 
     await doc.table(
       { headers: ["Metric", "Value"], rows: summaryRows },
-      { prepareHeader: () => doc.font("Helvetica-Bold").fontSize(12), prepareRow: (row) => doc.font("Helvetica").fontSize(11) }
+      {
+        prepareHeader: () => doc.font("Helvetica-Bold").fontSize(12),
+        prepareRow: (row) => doc.font("Helvetica").fontSize(11),
+      }
     );
 
     doc.moveDown(1);
 
+    // Profit by date table
     const profitRows = latest.profitByDate.map((p) => [
       p.date,
       `₹${p.profit}`,
@@ -347,19 +343,16 @@ app.get("/download", async (req, res) => {
 
     await doc.table(
       { headers: ["Date", "Profit (₹)", "Profit % (Revenue)", "Profit % (Cost)"], rows: profitRows },
-      { prepareHeader: () => doc.font("Helvetica-Bold").fontSize(12), prepareRow: (row) => doc.font("Helvetica").fontSize(10) }
+      {
+        prepareHeader: () => doc.font("Helvetica-Bold").fontSize(12),
+        prepareRow: (row) => doc.font("Helvetica").fontSize(10),
+      }
     );
 
-    doc.end();
+    doc.end(); // ✅ finish PDF and send
 
-    stream.on("finish", () => {
-      res.download(filePath, "dashboard-report.pdf", (err) => {
-        if (err) console.error(" PDF download error:", err);
-        try { fs.unlinkSync(filePath); } catch (e) {}
-      });
-    });
   } catch (err) {
-    console.error(" PDF error:", err);
+    console.error("PDF error:", err);
     res.status(500).json({ error: "Failed to generate PDF" });
   }
 });
